@@ -153,7 +153,7 @@ class AdminMatchController extends Controller
             'show_joined_player_contacts_public' => 'nullable|boolean',
         ]);
 
-        $validated['kategori'] = $validated['kategori'] ?: 'Olahraga';
+        $validated['kategori'] = $validated['kategori'] ?? 'Olahraga';
 
         $validated['show_joined_players_public'] = $request->boolean('show_joined_players_public', true);
         $validated['show_joined_player_contacts_public'] = $request->boolean('show_joined_player_contacts_public');

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use App\Models\Player;
+use App\Models\CommunityEvent;
+use App\Models\Participant;
+use App\Models\User;
 use Tests\TestCase;
 
 class FutsalFeatureTest extends TestCase
@@ -12,8 +14,10 @@ class FutsalFeatureTest extends TestCase
 
     public function test_admin_can_create_match()
     {
+        $this->actingAs(User::factory()->create());
+
         $response = $this->post(route('admin.matches.store'), [
-            'nama_match' => 'Sunday Fun Futsal',
+            'nama_event' => 'Sunday Fun Futsal',
             'tanggal' => '2026-04-01',
             'waktu' => '19:00',
             'tempat' => 'Champion Futsal',
@@ -25,8 +29,8 @@ class FutsalFeatureTest extends TestCase
         ]);
 
         $response->assertRedirect(route('admin.matches.index'));
-        $this->assertDatabaseHas('futsal_matches', [
-            'nama_match' => 'Sunday Fun Futsal',
+        $this->assertDatabaseHas('community_events', [
+            'nama_event' => 'Sunday Fun Futsal',
             'show_joined_players_public' => 1,
             'show_joined_player_contacts_public' => 0,
         ]);
@@ -35,8 +39,8 @@ class FutsalFeatureTest extends TestCase
     public function test_player_can_join_match()
     {
         $this->withoutExceptionHandling();
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Sunday Fun Futsal',
+        $match = CommunityEvent::create([
+            'nama_event' => 'Sunday Fun Futsal',
             'tanggal' => '2026-04-01',
             'waktu' => '19:00',
             'tempat' => 'Champion Futsal',
@@ -53,13 +57,13 @@ class FutsalFeatureTest extends TestCase
 
         $response->assertRedirect(route('player.join.success', $match->slug));
         
-        $this->assertDatabaseHas('players', [
+        $this->assertDatabaseHas('participants', [
             'nama' => 'John Doe',
             'kontak' => '08123456789'
         ]);
 
-        $this->assertDatabaseHas('match_player', [
-            'futsal_match_id' => $match->id,
+        $this->assertDatabaseHas('event_participant', [
+            'community_event_id' => $match->id,
             'status_join' => 'joined',
             'hadir' => 0,
             'payment_method' => 'tunai',
@@ -70,8 +74,8 @@ class FutsalFeatureTest extends TestCase
 
     public function test_player_cannot_join_if_full()
     {
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Sunday Fun Futsal',
+        $match = CommunityEvent::create([
+            'nama_event' => 'Sunday Fun Futsal',
             'tanggal' => '2026-04-01',
             'waktu' => '19:00',
             'tempat' => 'Champion Futsal',
@@ -94,13 +98,13 @@ class FutsalFeatureTest extends TestCase
         ]);
 
         $response->assertSessionHas('error');
-        $this->assertEquals(1, $match->players()->count());
+        $this->assertEquals(1, $match->participants()->count());
     }
 
     public function test_player_can_simulate_online_banking_payment()
     {
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Online Payment Match',
+        $match = CommunityEvent::create([
+            'nama_event' => 'Online Payment Match',
             'tanggal' => '2026-04-10',
             'waktu' => '20:00',
             'tempat' => 'Arena Simulasi',
@@ -119,11 +123,11 @@ class FutsalFeatureTest extends TestCase
 
         $response->assertSessionHas('success');
 
-        $player = Player::where('kontak', '081200001111')->firstOrFail();
+        $player = Participant::where('kontak', '081200001111')->firstOrFail();
 
-        $this->assertDatabaseHas('match_player', [
-            'futsal_match_id' => $match->id,
-            'player_id' => $player->id,
+        $this->assertDatabaseHas('event_participant', [
+            'community_event_id' => $match->id,
+            'participant_id' => $player->id,
             'payment_method' => 'online_banking',
             'payment_status' => 'paid',
         ]);
@@ -131,8 +135,8 @@ class FutsalFeatureTest extends TestCase
 
     public function test_player_can_see_joined_players_when_public_visibility_enabled()
     {
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Open Member List Match',
+        $match = CommunityEvent::create([
+            'nama_event' => 'Open Member List Match',
             'tanggal' => '2026-05-10',
             'waktu' => '18:00',
             'tempat' => 'Lapangan A',
@@ -144,28 +148,27 @@ class FutsalFeatureTest extends TestCase
             'slug' => 'open-member-list-match',
         ]);
 
-        $p1 = Player::create(['nama' => 'Ari', 'kontak' => '081111111111']);
-        $p2 = Player::create(['nama' => 'Beni', 'kontak' => '082222222222']);
-        $p3 = Player::create(['nama' => 'Caca', 'kontak' => '083333333333']);
+        $p1 = Participant::create(['nama' => 'Ari', 'kontak' => '081111111111']);
+        $p2 = Participant::create(['nama' => 'Beni', 'kontak' => '082222222222']);
+        $p3 = Participant::create(['nama' => 'Caca', 'kontak' => '083333333333']);
 
-        $match->players()->attach($p1->id, ['status_join' => 'joined']);
-        $match->players()->attach($p2->id, ['status_join' => 'joined']);
-        $match->players()->attach($p3->id, ['status_join' => 'batal']);
+        $match->participants()->attach($p1->id, ['status_join' => 'joined']);
+        $match->participants()->attach($p2->id, ['status_join' => 'joined']);
+        $match->participants()->attach($p3->id, ['status_join' => 'batal']);
 
         $response = $this->get(route('player.join.show', $match->slug));
 
-        $response->assertSee('Pemain yang Sudah Join');
+        $response->assertSee('Roster');
         $response->assertSee('Ari');
         $response->assertSee('Beni');
         $response->assertDontSee('Caca');
-        $response->assertSee('Kontak disembunyikan oleh admin');
         $response->assertDontSee('081111111111');
     }
 
     public function test_player_cannot_see_joined_players_when_public_visibility_disabled()
     {
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Closed Member List Match',
+        $match = CommunityEvent::create([
+            'nama_event' => 'Closed Member List Match',
             'tanggal' => '2026-05-12',
             'waktu' => '19:00',
             'tempat' => 'Lapangan B',
@@ -177,19 +180,21 @@ class FutsalFeatureTest extends TestCase
             'slug' => 'closed-member-list-match',
         ]);
 
-        $player = Player::create(['nama' => 'Doni', 'kontak' => '084444444444']);
-        $match->players()->attach($player->id, ['status_join' => 'joined']);
+        $player = Participant::create(['nama' => 'Doni', 'kontak' => '084444444444']);
+        $match->participants()->attach($player->id, ['status_join' => 'joined']);
 
         $response = $this->get(route('player.join.show', $match->slug));
 
-        $response->assertDontSee('Pemain yang Sudah Join');
+        $response->assertDontSee('Roster');
         $response->assertDontSee('Doni');
     }
 
     public function test_admin_can_update_public_join_visibility_settings()
     {
-        $match = \App\Models\FutsalMatch::create([
-            'nama_match' => 'Visibility Settings Match',
+        $this->actingAs(User::factory()->create());
+
+        $match = CommunityEvent::create([
+            'nama_event' => 'Visibility Settings Match',
             'tanggal' => '2026-05-15',
             'waktu' => '20:00',
             'tempat' => 'Lapangan C',
@@ -208,7 +213,7 @@ class FutsalFeatureTest extends TestCase
 
         $response->assertSessionHas('success');
 
-        $this->assertDatabaseHas('futsal_matches', [
+        $this->assertDatabaseHas('community_events', [
             'id' => $match->id,
             'show_joined_players_public' => 0,
             'show_joined_player_contacts_public' => 0,

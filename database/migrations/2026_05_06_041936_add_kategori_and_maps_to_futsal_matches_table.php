@@ -11,10 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('futsal_matches', function (Blueprint $table) {
-            $table->string('kategori')->default('Futsal')->after('nama_match');
-            $table->text('link_maps')->nullable()->after('tempat');
-        });
+        if (!Schema::hasColumn('community_events', 'kategori')) {
+            Schema::table('community_events', function (Blueprint $table) {
+                $table->string('kategori')->default('Futsal')->after('nama_event');
+            });
+        }
+
+        if (!Schema::hasColumn('community_events', 'link_maps')) {
+            Schema::table('community_events', function (Blueprint $table) {
+                $table->text('link_maps')->nullable()->after('tempat');
+            });
+        }
     }
 
     /**
@@ -22,8 +29,18 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('futsal_matches', function (Blueprint $table) {
-            $table->dropColumn(['kategori', 'link_maps']);
-        });
+        $dropColumns = [];
+        if (Schema::hasColumn('community_events', 'kategori')) {
+            $dropColumns[] = 'kategori';
+        }
+        if (Schema::hasColumn('community_events', 'link_maps')) {
+            $dropColumns[] = 'link_maps';
+        }
+
+        if ($dropColumns) {
+            Schema::table('community_events', function (Blueprint $table) use ($dropColumns) {
+                $table->dropColumn($dropColumns);
+            });
+        }
     }
 };
